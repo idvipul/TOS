@@ -14,7 +14,6 @@ static char* shell_comands[] = {"help", "cls", "shell", "pong", "ps", "about", "
 
 // created a struct store history of the commands typed
 typedef struct _shell_history {
-  int index;
   char* cmd;
   struct _shell_history* next;
 } shell_history;
@@ -53,10 +52,12 @@ void string_copy (int window_id, char* history_cmd, char* new_cmd) {
 
 // get all the commands typed -- history
 void get_history(int window_id, shell_history* head) {
+  int index = 0;
   shell_history* temp = head;
 
   while(temp != NULL) {
-    wm_print(window_id, "%d: %s \n", temp->index, temp->cmd);
+    wm_print(window_id, "%d: %s \n", index, temp->cmd);
+    index++;
     temp = temp->next;
   }
 }
@@ -80,11 +81,11 @@ void execute_pling_command(int window_id, int history_index, shell_history* head
 void check_pling_command(int window_id, char* command, int command_index, int history_index, shell_history* head) {
   // since 1st char is ! -- start from index 1
   int index = 1;
-  int num = 0;
+  int cmd_num = 0;
 
   while (command[index] != '\0') {
     if (command[index] >= '0' && command[index] <= '9') {
-      num = num * 10 + (command[index] - '0');
+      cmd_num = cmd_num * 10 + (command[index] - '0');
       index++;
     } else {
       wm_print(window_id, "Event not found");
@@ -92,11 +93,11 @@ void check_pling_command(int window_id, char* command, int command_index, int hi
     }
   }
 
-  if (num > history_index) {
+  if (cmd_num > history_index) {
     wm_print(window_id, "Event not found");
     return;
   } else {
-    execute_pling_command(window_id, num, head);
+    execute_pling_command(window_id, cmd_num, head);
   }
 }
 
@@ -160,6 +161,28 @@ int string_compare (char* str1, char* str2) {
   }
 }
 
+// echoes to the console the string that followed the command -- echo
+void print_echo(int window_id, char* command) {
+  int read_index = 5;
+  int write_index = 0;
+  char echo_output[50];
+
+  while(command[read_index] != '\0') {
+    if (command[read_index] == 34 || command[read_index] == 39) {
+      read_index++;
+      continue;
+    }
+    echo_output[write_index] = command[read_index];
+    read_index++;
+    write_index++;
+  }
+  if (string_compare(command, "None")) {
+    wm_print(window_id, "\n");
+  } else {
+  wm_print(window_id, "%s", echo_output);
+  }
+}
+
 // find index of the command from the available list of shell commands
 void find_shell_command(int window_id, char *command, shell_history* head) {
   int command_index = -1;
@@ -202,6 +225,7 @@ void shell_process(PROCESS self, PARAM param) {
   shell_history* tail = NULL;
   int command_index = 0;
   int history_index = 0;
+  int input_length = 0;
 
   int window_id = wm_create(4, 2, SHELL_WIDTH, SHELL_HEIGHT);
   wm_print(window_id, "%s ", SHELL_SYMBOL);
@@ -209,21 +233,54 @@ void shell_process(PROCESS self, PARAM param) {
   while (42) {
     char key = keyb_get_keystroke(window_id, TRUE);
 
-    // read the command until enter key(ASCII Dec = 13) is not pressed
+    // ignore initial whitespaces(ASCII Dec = 32)
+    if (key == 32) {
+      input_length++;
+      command[command_index] = key;
+      wm_print(window_id, "%c", key);
+      continue;
+    }
+
+    // ignores empty enter(ASCII Dec = 13) key press
+    if (key == 13) {
+      wm_print(window_id, "\n%s ", SHELL_SYMBOL);
+      continue;
+    }
+
+    // read the command until enter key is not pressed
     while(key != 13) {
       // when backspace(ASCII Dec = 8) is pressed - remove previous char
-      if(key == 8 && command_index > 0) {
-        command[command_index] = '\0';
-        command_index--;
+      if(key == 8) {
+         if (command_index > 0) {
+           input_length--;
+           command_index--;
+           command[command_index] = '\0';
+           wm_print(window_id, "%c", key);
+      }
+      if (command_index == 0 && input_length > 0) {
+        input_length--;
+        command[command_index] = key;
+        wm_print(window_id, "%c", key);
+      }
+    }
+
+      if (key != 8) {
+        command[command_index] = key;
+        input_length++;
+        command_index++;
         wm_print(window_id, "%c", key);
       }
 
-      if (key != 8) {
-          command[command_index] = key;
-          command_index++;
-          wm_print(window_id, "%c", key);
+      key = keyb_get_keystroke(window_id, TRUE);
+    }
+
+      // ignore trailing whitespaces
+      for (int i = command_index - 1; i > 0; i--) {
+        if (command[i] != 32) {
+          break;
         }
-        key = keyb_get_keystroke(window_id, TRUE);
+        command_index--;
+        command[i] = '\0';
       }
 
     wm_print(window_id, "\n");
@@ -233,7 +290,6 @@ void shell_process(PROCESS self, PARAM param) {
     new_command->cmd = (char*) malloc((command_index + 1) * sizeof(char));
     string_copy(window_id, new_command->cmd, command);
     new_command->next = NULL;
-    new_command->index = history_index;
     history_index++;
 
     if (head == NULL) {
@@ -249,6 +305,8 @@ void shell_process(PROCESS self, PARAM param) {
     if (command[0] == 33) {
       // pling(ASCII Dec = 33) -- British slang for exclamation mark
       check_pling_command(window_id, command, command_index, history_index, head);
+    } else if(k_memcmp(command, "echo", 4) == 0) {
+      print_echo(window_id, command);
     } else {
       find_shell_command(window_id, command, head);
     }
@@ -264,4 +322,5 @@ void shell_process(PROCESS self, PARAM param) {
 
 void start_shell() {
   create_process(shell_process, 5, 0, "Shell Process");
+  resign();
 }
