@@ -28,13 +28,13 @@ void print_help(int window_id) {
   wm_print(window_id, "ps      - Prints the PROCESS table\n");
   wm_print(window_id, "about   - Prints author's information\n");
   wm_print(window_id, "history - Prints all the commands that have been typed into the shell\n");
-  wm_print(window_id, "!num    - Repeats the command with the given number\n");
+  wm_print(window_id, "!<num>  - Repeats the command with the given number\n");
   wm_print(window_id, "echo    - Echoes to the console the string that followed the command\n");
 }
 
 // prints author's information -- about
 void print_about(int window_id) {
-  wm_print(window_id, "Shell commands implemented by Vipul Karanjkar");
+  wm_print(window_id, "Shell Commands Implemented by Vipul Karanjkar\n");
 }
 
 // copy newely typed command to history
@@ -47,7 +47,7 @@ void string_copy (int window_id, char* history_cmd, char* new_cmd) {
     index++;
   }
 
-  history_cmd[index+1] = '\0';
+  history_cmd[index + 1] = '\0';
 }
 
 // get all the commands typed -- history
@@ -165,7 +165,7 @@ int string_compare (char* str1, char* str2) {
 void print_echo(int window_id, char* command) {
   int read_index = 5;
   int write_index = 0;
-  char echo_output[50];
+  char echo_output[500];
 
   while(command[read_index] != '\0') {
     if (command[read_index] == 34 || command[read_index] == 39) {
@@ -218,9 +218,17 @@ void execute_shell_command(int window_id, int command_index, shell_history* head
   };
 }
 
+// clear command buffer
+void clear_command_buffer(int window_id, char* command) {
+  wm_print(window_id, "\n%s ", SHELL_SYMBOL);
+  for (int i = 0; i < 500; i++) {
+    command[i] = '\0';
+  }
+}
+
 // entry point for shell process
 void shell_process(PROCESS self, PARAM param) {
-  char command[50];
+  char command[500];
   shell_history* head = NULL;
   shell_history* tail = NULL;
   int command_index = 0;
@@ -273,7 +281,6 @@ void shell_process(PROCESS self, PARAM param) {
 
       key = keyb_get_keystroke(window_id, TRUE);
     }
-
       // ignore trailing whitespaces
       for (int i = command_index - 1; i > 0; i--) {
         if (command[i] != 32) {
@@ -311,15 +318,12 @@ void shell_process(PROCESS self, PARAM param) {
       find_shell_command(window_id, command, head);
     }
 
-    // clears command
-    wm_print(window_id, "\n%s ", SHELL_SYMBOL);
-    for (int i = 0; i < command_index; i++) {
-      command[i] = '\0';
-    }
+    clear_command_buffer(window_id, command);
     command_index = 0;
   }
 }
 
+// starts shell
 void start_shell() {
   create_process(shell_process, 5, 0, "Shell Process");
   resign();
